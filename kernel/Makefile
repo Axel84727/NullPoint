@@ -10,6 +10,9 @@ XGDB := $(shell which $(CROSS)-gdb 2>/dev/null)
 
 CLANG := $(shell which clang 2>/dev/null)
 LD_LLD := $(shell which ld.lld 2>/dev/null)
+# prefer llvm-objcopy (Homebrew llvm) or gobjcopy (binutils) before plain objcopy
+LLVM_OBJCOPY := $(shell which llvm-objcopy 2>/dev/null)
+GOBJCOPY := $(shell which gobjcopy 2>/dev/null)
 OBJCOPY := $(shell which objcopy 2>/dev/null)
 QEMU := $(shell which qemu-system-x86_64 2>/dev/null || echo qemu-system-x86_64)
 GDB := $(shell which gdb 2>/dev/null || echo gdb)
@@ -17,7 +20,8 @@ GDB := $(shell which gdb 2>/dev/null || echo gdb)
 # Choose toolchain: prefer cross tools if present
 CC := $(or $(XGCC),$(CLANG))
 LD := $(or $(XLD),$(LD_LLD),$(shell which ld 2>/dev/null))
-OBJCOPY := $(or $(XOBJCOPY),$(OBJCOPY))
+# final OBJCOPY selection prefers cross, then llvm-objcopy, then gobjcopy, then objcopy
+OBJCOPY := $(or $(XOBJCOPY),$(LLVM_OBJCOPY),$(GOBJCOPY),$(OBJCOPY))
 GDB_CLIENT := $(or $(XGDB),$(GDB))
 
 NASM := $(shell which nasm 2>/dev/null || echo nasm)
