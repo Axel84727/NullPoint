@@ -1,11 +1,11 @@
-# ORIGIN
+# NullPoint
 
 ## Overview
 
-ORIGIN is an experimental project whose goal is to build a complete computing system from first principles.  
+NullPoint is an experimental project whose goal is to build a complete computing system from first principles.  
 The project explores the construction of a minimal operating system for embedded or bare-metal environments, alongside a custom runtime, programming language, and compiler.
 
-Rather than aiming for production readiness, ORIGIN is designed as a long-term learning and research project focused on understanding how software systems are built from the hardware level upward.
+Rather than aiming for production readiness, NullPoint is designed as a long-term learning and research project focused on understanding how software systems are built from the hardware level upward.
 
 ---
 
@@ -16,14 +16,14 @@ Rather than aiming for production readiness, ORIGIN is designed as a long-term l
 - Explore memory management, task scheduling, and hardware abstraction.
 - Build a custom runtime environment.
 - Design a programming language tailored for low-level systems.
-- Implement a compiler or transpiler targeting the ORIGIN runtime.
+- Implement a compiler or transpiler targeting the NullPoint runtime.
 - Maintain full control and transparency across all system layers.
 
 ---
 
 ## Scope
 
-ORIGIN is intentionally ambitious. The scope includes, but is not limited to:
+NullPoint is intentionally ambitious. The scope includes, but is not limited to:
 
 - Bootloader and system initialization
 - Kernel architecture (monolithic or microkernel, to be determined)
@@ -39,7 +39,7 @@ The project prioritizes understanding and experimentation over performance or co
 
 ## Philosophy
 
-ORIGIN follows these principles:
+NullPoint follows these principles:
 
 - No hidden abstractions  
 - Minimal external dependencies  
@@ -65,7 +65,7 @@ It is suitable for developers interested in:
 
 ## Project Status
 
-ORIGIN is in early development.  
+NullPoint is in early development.  
 Many design decisions are still open and will evolve as the project progresses.
 
 ---
