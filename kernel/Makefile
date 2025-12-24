@@ -1,64 +1,89 @@
-# Minimal Makefile to build a freestanding x86_64 kernel
-# Detects cross tools (x86_64-elf-*) if available; otherwise uses clang/ld.lld/objcopy when present.
+# NASM-first Makefile for a minimal 512-byte boot sector project
+SHELL := /bin/bash
 
-CROSS ?= x86_64-elf
+# Tools (can be overridden by environment variables)
+NASM ?= $(shell which nasm 2>/dev/null || true)
+QEMU ?= $(shell which qemu-system-x86_64 2>/dev/null || echo qemu-system-x86_64)
+GRUB_MKRESCUE ?= $(shell which x86_64-elf-grub-mkrescue 2>/dev/null || which grub-mkrescue 2>/dev/null || true)
+XORRISO ?= $(shell which xorriso 2>/dev/null || true)
 
-XGCC := $(shell which $(CROSS)-gcc 2>/dev/null)
-XLD  := $(shell which $(CROSS)-ld 2>/dev/null)
-XOBJCOPY := $(shell which $(CROSS)-objcopy 2>/dev/null)
-XGDB := $(shell which $(CROSS)-gdb 2>/dev/null)
-
-CLANG := $(shell which clang 2>/dev/null)
-LD_LLD := $(shell which ld.lld 2>/dev/null)
-# prefer llvm-objcopy (Homebrew llvm) or gobjcopy (binutils) before plain objcopy
-LLVM_OBJCOPY := $(shell which llvm-objcopy 2>/dev/null)
-GOBJCOPY := $(shell which gobjcopy 2>/dev/null)
-OBJCOPY := $(shell which objcopy 2>/dev/null)
-QEMU := $(shell which qemu-system-x86_64 2>/dev/null || echo qemu-system-x86_64)
-GDB := $(shell which gdb 2>/dev/null || echo gdb)
-
-# Choose toolchain: prefer cross tools if present
-CC := $(or $(XGCC),$(CLANG))
-LD := $(or $(XLD),$(LD_LLD),$(shell which ld 2>/dev/null))
-# final OBJCOPY selection prefers cross, then llvm-objcopy, then gobjcopy, then objcopy
-OBJCOPY := $(or $(XOBJCOPY),$(LLVM_OBJCOPY),$(GOBJCOPY),$(OBJCOPY))
-GDB_CLIENT := $(or $(XGDB),$(GDB))
-
-NASM := $(shell which nasm 2>/dev/null || echo nasm)
-
-CFLAGS := -nostdlib -ffreestanding -fno-builtin -fno-stack-protector -O2 -Wall -Wextra -m64
-ASFLAGS := -f elf64
-LDFLAGS := -T linker/linker.ld -nostdlib
-
-SRC := src/main.c
-ASM := boot/boot.S
+# Output
 BUILD_DIR := build
+BOOT_BIN := $(BUILD_DIR)/boot.bin
+ISO := kernel.iso
+SCREEN := qemu_screen.ppm
+SERIAL_LOG := serial.log
 
-.PHONY: all run gdb clean
-all: $(BUILD_DIR)/kernel.bin
+# Boot sector source
+ASM := boot/boot.asm
 
-# Assemble (using clang/gcc as portable assembler or as -c for .S)
-boot/boot.o: $(ASM)
-	@mkdir -p boot
-	$(CC) -c $(ASM) -o $@ $(CFLAGS)
+.PHONY: all check-tools boot run run-headless iso run-iso clean distclean help
 
-$(BUILD_DIR)/main.o: $(SRC)
+all: check-tools $(BOOT_BIN)
+
+check-tools:
+	@echo "Checking required tools..."
+	@echo "NASM: " $(NASM)
+	@echo "QEMU: " $(QEMU)
+	@if [ -z "$(NASM)" ]; then \
+		echo "ERROR: nasm not found. Install with: brew install nasm (macOS) or apt install nasm (WSL)"; exit 1; \
+	fi
+	@if [ -z "$(QEMU)" ]; then \
+		echo "ERROR: qemu-system-x86_64 not found. Install with: brew install qemu or apt install qemu-system-x86"; exit 1; \
+	fi
+	@echo "OK"
+
+# Build a raw 512-byte boot sector
+$(BOOT_BIN): $(ASM)
 	@mkdir -p $(BUILD_DIR)
-	$(CC) -c $(SRC) -o $@ $(CFLAGS)
+	@echo "Assembling $< -> $@"
+	$(NASM) -f bin $< -o $@
+	@# verify size and signature
+	@sz=$$(wc -c < $@); if [ "$$sz" -ne 512 ]; then echo "ERROR: $@ size is $$sz (expected 512)"; exit 1; fi
+	@sig=$$(xxd -g 1 -l 2 -s 510 $@ | awk '{print $$2$$3}'); if [ "$$sig" != "55aa" ] && [ "$$sig" != "aa55" ]; then echo "ERROR: missing 0xAA55 signature in $@ (found: $$sig)"; exit 1; fi
+	@echo "$@ is valid (512 bytes, 0xAA55)"
 
-$(BUILD_DIR)/kernel.elf: boot/boot.o $(BUILD_DIR)/main.o linker/linker.ld
-	$(LD) $(LDFLAGS) boot/boot.o $(BUILD_DIR)/main.o -o $@
+# Run in a GUI window (macOS: -display cocoa). On M-series use accel=tcg for x86_64 emulation
+run: $(BOOT_BIN)
+	@echo "Running QEMU (GUI) - display may open on your host"
+	$(QEMU) -machine accel=tcg -m 512M -fda $(BOOT_BIN) -boot a -serial stdio -display cocoa
 
-$(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel.elf
-	$(OBJCOPY) -O binary $< $@
+# Headless run: redirect serial to file and optionally capture a screenshot via monitor
+run-headless: $(BOOT_BIN)
+	@echo "Running QEMU headless; serial -> $(SERIAL_LOG)"
+	$(QEMU) -machine accel=tcg -m 512M -fda $(BOOT_BIN) -boot a -nographic -serial file:$(SERIAL_LOG) -no-reboot -no-shutdown & QPID=$$!; sleep 2; kill $$QPID || true; echo "Done (serial in $(SERIAL_LOG))"
 
-run: $(BUILD_DIR)/kernel.bin
-	# Use accel=hvf on macOS Intel/Apple Silicon when available; fallback to tcg
-	$(QEMU) -machine accel=hvf -m 512M -kernel $(BUILD_DIR)/kernel.bin -serial stdio -s -S
+# Create a GRUB ISO if grub-mkrescue available
+iso: $(BOOT_BIN)
+	@if [ -z "$(GRUB_MKRESCUE)" ]; then \
+		echo "grub-mkrescue not found; install x86_64-elf-grub + xorriso or set GRUB_MKRESCUE environment variable"; exit 1; \
+	fi
+	@rm -rf iso
+	@mkdir -p iso/boot/grub
+	@cp $(BOOT_BIN) iso/boot/boot.bin
+	@printf 'set timeout=1\nset default=0\nmenuentry "Boot" {\n  multiboot /boot/boot.bin\n  boot\n}\n' > iso/boot/grub/grub.cfg
+	@echo "Creating ISO via $(GRUB_MKRESCUE) ..."
+	$(GRUB_MKRESCUE) -o $(ISO) iso
+	@echo "ISO created: $(ISO)"
 
-gdb: $(BUILD_DIR)/kernel.elf
-	$(GDB_CLIENT) $< -ex "target remote :1234"
+run-iso: iso
+	@echo "Running kernel ISO in QEMU (GUI)"
+	$(QEMU) -machine accel=tcg -m 512M -cdrom $(ISO) -boot d -display cocoa -serial stdio
 
 clean:
-	rm -rf $(BUILD_DIR) boot/*.o
+	rm -rf $(BUILD_DIR) $(ISO) $(SERIAL_LOG) $(SCREEN) iso
 
+# distclean removes backups or other files (use with caution)
+distclean: clean
+	@echo "No extra distclean steps"
+
+help:
+	@echo "Available targets:"
+	@echo "  make            -> build (check-tools + assemble)"
+	@echo "  make check-tools -> verify nasm/qemu are installed"
+	@echo "  make run        -> run boot.bin in QEMU with GUI (cocoa)"
+	@echo "  make run-headless -> run headless and capture serial to $(SERIAL_LOG)"
+	@echo "  make iso        -> build a GRUB ISO (requires grub-mkrescue)"
+	@echo "  make run-iso    -> run the ISO in QEMU"
+	@echo "  make clean      -> remove build artifacts"
+	@echo "  make distclean  -> deep clean"
