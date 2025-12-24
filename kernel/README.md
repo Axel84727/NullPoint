@@ -1,58 +1,70 @@
-Kernel minimal
+# Kernel (Boot Sector) — Hello from NULLPOINT
 
-This folder contains a minimal freestanding x86_64 kernel example and a small build flow to run it in QEMU.
+This directory contains a minimal 512-byte NASM boot sector that sets text mode, clears the screen and prints "Hello from NULLPOINT" in red using direct VGA text memory writes.
 
-Important note for Apple Silicon (M1/M2/M3/M4): running an x86_64 guest on Apple Silicon is emulated and will be slower (TCG). QEMU accel=hvf cannot accelerate an x86_64 guest on Apple Silicon. If you want native speed on Apple Silicon consider building an aarch64 kernel instead.
+Quick goals
+- Build a raw 512-byte boot sector: `build/boot.bin`.
+- Run it in QEMU (floppy / -fda) to test the boot/visual output.
 
-Prerequisites (macOS, zsh)
-- Homebrew (https://brew.sh/)
-- Basic packages: qemu, nasm, llvm (includes clang/lld/llvm-objcopy), binutils (gobjcopy), gdb, make
+Prerequisites
+- macOS (Homebrew) or Linux/WSL
+- Tools: `nasm`, `qemu-system-x86_64` (and optionally `x86_64-elf-grub` + `xorriso` for creating ISOs)
 
-Quick start (recommended)
-1) Install Homebrew (if you don't have it):
+macOS (Homebrew) install
 
-   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```bash
+brew update
+brew install nasm qemu xorriso
+# Optionally install x86_64-elf-grub if you want grub-mkrescue:
+# brew install i686-elf-grub  # or x86_64-elf-grub if available
+```
 
-2) Run the helper setup script to install packages:
+Ubuntu / WSL install
 
-   cd kernel
-   chmod +x setup.sh
-   ./setup.sh
+```bash
+sudo apt update
+sudo apt install nasm qemu-system-x86 xorriso
+```
 
-3) Add Homebrew llvm to your PATH for this session (Homebrew prefix is detected by the script):
+Build
 
-   export PATH="$(brew --prefix)/opt/llvm/bin:$PATH"
+```bash
+cd kernel
+make            # runs check-tools and assembles build/boot.bin
+```
 
-4) Build the kernel:
+Verify
 
-   make
+```bash
+wc -c build/boot.bin   # should print 512
+xxd -g 1 -l 2 -s 510 build/boot.bin   # should show 55 aa
+```
 
-   This will produce `build/kernel.elf` and `build/kernel.bin`.
+Run (GUI)
 
-5) Run the kernel in QEMU (this will start QEMU and wait for a GDB connection on port 1234):
+```bash
+# On macOS this opens a Cocoa window for QEMU
+make run
+```
 
-   make run
+Run headless (no window)
 
-   If your Mac is Apple Silicon, QEMU will likely use TCG for x86_64 emulation. If `-machine accel=hvf` fails, the Makefile will fall back to TCG if you edit the run command.
+```bash
+make run-headless
+# serial output (if any) is written to serial.log
+```
 
-6) Debug with GDB (in another terminal):
+Create ISO (optional)
 
-   make gdb
+```bash
+make iso
+make run-iso
+```
 
-   Inside GDB:
-     (gdb) target remote :1234
-     (gdb) break kernel_main
-     (gdb) continue
+Notes
+- On Apple Silicon (M-series) QEMU emulates x86_64 using TCG (slow). For faster iteration consider adding a native aarch64 flow.
+- The boot sector writes directly to VGA memory (0xB8000). The headless serial run will not show the VGA output; use `make run` to open the GUI and view the text.
 
-Notes and next steps
-- The `boot/boot.S` file in this example is a tiny start stub that jumps to `kernel_main`. For a robust boot sequence use GRUB/multiboot (generate a bootable ISO) or add a full 16/32->64-bit bootstrap.
-- If you want to target Apple Silicon natively, I can add an aarch64 build flow (toolchain flags, linker script and QEMU invocation) — tell me if you prefer that.
-
-Files of interest
-- Makefile — minimal build flow (detects cross-toolchain if present, otherwise uses clang/lld/llvm-objcopy)
-- linker/linker.ld — minimal linker script placing the kernel at 0x100000
-- boot/boot.S — very small start stub
-- src/main.c — kernel entry (kernel_main)
-- setup.sh — helper script to install dependencies using Homebrew
-
-If you want, I can also convert this to a GRUB+ISO flow to boot the kernel more realistically. If you run the setup steps and `make` and get any errors, paste the output here and I'll fix them and commit the changes.
+Troubleshooting
+- If `make run` fails to open a window on macOS, run the equivalent `qemu-system-x86_64` command shown in `Makefile` and ensure `-display cocoa` is supported.
+- If `nasm` or `qemu` are not found, install them as shown above.

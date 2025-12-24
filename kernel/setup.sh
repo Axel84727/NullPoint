@@ -4,31 +4,34 @@ set -euo pipefail
 # setup.sh - install required dependencies on macOS using Homebrew
 # Usage: ./setup.sh
 
-echo "Checking for Homebrew..."
-if ! command -v brew >/dev/null 2>&1; then
-  cat <<'EOF'
+echo "Running setup for kernel bootsector project"
+
+if [ "$(uname)" = "Darwin" ]; then
+  echo "Checking for Homebrew..."
+  if ! command -v brew >/dev/null 2>&1; then
+    cat <<'EOF'
 Homebrew is not installed. Install it with:
 
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 After installing Homebrew re-run this script.
 EOF
-  exit 1
-fi
+    exit 1
+  fi
 
-echo "Updating Homebrew..."
-brew update
+  echo "Updating Homebrew..."
+  brew update
 
-PACKAGES=(qemu nasm llvm binutils gdb make)
+  PACKAGES=(qemu nasm llvm binutils gdb make)
 
-echo "Installing: ${PACKAGES[*]}"
-brew install "${PACKAGES[@]}"
+  echo "Installing: ${PACKAGES[*]}"
+  brew install "${PACKAGES[@]}"
 
-BREW_PREFIX=$(brew --prefix)
-# On Apple Silicon Homebrew path is /opt/homebrew, on Intel /usr/local
-LLVM_BIN="${BREW_PREFIX}/opt/llvm/bin"
+  BREW_PREFIX=$(brew --prefix)
+  # On Apple Silicon Homebrew path is /opt/homebrew, on Intel /usr/local
+  LLVM_BIN="${BREW_PREFIX}/opt/llvm/bin"
 
-cat <<EOF
+  cat <<EOF
 
 Installation complete. To use Homebrew llvm in this session, add:
 
@@ -57,4 +60,14 @@ Debugging (in another terminal):
   make -C kernel gdb
 
 EOF
-
+else
+  if command -v apt >/dev/null 2>&1; then
+    echo "Installing nasm and qemu via apt (may require sudo)..."
+    sudo apt update
+    sudo apt install -y nasm qemu-system-x86 xorriso || true
+    echo "Done. Run 'cd kernel && make' to build. Use 'make run' to open QEMU GUI."
+  else
+    echo "Unsupported package manager. Please install nasm and qemu manually."
+    exit 1
+  fi
+fi
