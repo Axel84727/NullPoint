@@ -1,0 +1,15 @@
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+/build/
+kernel/build/
+**/*.o
+*.bin
+*.elf
+*.iso
+*.log
+__pycache__/
+*.pyc
+
