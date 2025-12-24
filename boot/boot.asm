@@ -11,6 +11,9 @@ start:
     mov ss, ax
     mov sp, 0x7C00
 
+    ; store BIOS boot drive (DL contains drive number at boot)
+    mov [boot_drive], dl
+
     ; init serial (COM1)
     call serial_init
 
@@ -105,12 +108,9 @@ load_sectors:
     push cx
     push dx
 
+    ; AH = 0x02 (read sectors), AL = count (caller must set), CH/DH/CL already set
     mov ah, 0x02
-    ; AL already has sectors count
-    xor ax, ax
-    mov es, ax
-    mov ax, 0x0000  ; ensure ES=0 (already set) - kept for clarity
-    mov ah, 0x02
+    ; ES:BX should already point to destination
     int 0x13
     jc .err
 
