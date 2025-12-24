@@ -4,7 +4,8 @@ project(NullPoint LANGUAGES NONE)
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
-set(BOOT_SRC ${CMAKE_SOURCE_DIR}/src/boot.asm)
+set(BOOT_SRC ${CMAKE_SOURCE_DIR}/boot/boot.asm)
+set(STAGE2_SRC ${CMAKE_SOURCE_DIR}/boot/stage2.asm)
 set(BUILD_DIR ${CMAKE_BINARY_DIR})
 set(BOOT_BIN ${BUILD_DIR}/nullpoint.bin)
 set(NASM_EXECUTABLE nasm)
@@ -24,16 +25,16 @@ if(NOT QEMU)
 endif()
 
 # -----------------------------------------------------------------------------
-# Build step: assemble and pad to 512 bytes with 0x55AA signature
+# Build step: assemble boot + stage2 and create a floppy image (1.44MB)
+# Uses cmake/build_floppy.sh to create ${BOOT_BIN}
 # -----------------------------------------------------------------------------
 add_custom_command(
   OUTPUT ${BOOT_BIN}
   COMMAND ${CMAKE_COMMAND} -E make_directory ${BUILD_DIR}
-  COMMAND ${CMAKE_COMMAND} -E echo "Assembling ${BOOT_SRC} -> ${BOOT_BIN}"
-  COMMAND ${CMAKE_COMMAND} -E env ${NASM} -f bin "${BOOT_SRC}" -o "${BOOT_BIN}.tmp"
-  COMMAND ${CMAKE_COMMAND} -E env bash "${CMAKE_SOURCE_DIR}/cmake/pad_boot.sh" "${BOOT_BIN}" "${BOOT_BIN}.tmp"
-  DEPENDS ${BOOT_SRC}
-  COMMENT "Assemble and create ${BOOT_BIN} (512 bytes, 0x55AA signature)"
+  COMMAND ${CMAKE_COMMAND} -E echo "Assembling ${BOOT_SRC} + ${STAGE2_SRC} -> ${BOOT_BIN}"
+  COMMAND ${CMAKE_COMMAND} -E env bash "${CMAKE_SOURCE_DIR}/cmake/build_floppy.sh" "${BOOT_BIN}" "${BOOT_SRC}" "${STAGE2_SRC}" "${NASM_EXECUTABLE}"
+  DEPENDS ${BOOT_SRC} ${STAGE2_SRC} ${CMAKE_SOURCE_DIR}/cmake/pad_boot.sh
+  COMMENT "Assemble and create ${BOOT_BIN} (floppy image with boot + stage2)"
   VERBATIM
 )
 
