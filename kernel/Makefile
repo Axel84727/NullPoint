@@ -1,5 +1,5 @@
-# Makefile mínimo para construir un kernel x86_64 freestanding
-# Detecta herramientas cross (x86_64-elf-*) si están instaladas, si no usa clang/ld.lld/objcopy cuando estén disponibles.
+# Minimal Makefile to build a freestanding x86_64 kernel
+# Detects cross tools (x86_64-elf-*) if available; otherwise uses clang/ld.lld/objcopy when present.
 
 CROSS ?= x86_64-elf
 
