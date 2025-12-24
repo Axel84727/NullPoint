@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# setup.sh - instalar dependencias necesarias en macOS usando Homebrew
-# Uso: ./setup.sh
+# setup.sh - install required dependencies on macOS using Homebrew
+# Usage: ./setup.sh
 
-echo "Comprobando Homebrew..."
+echo "Checking for Homebrew..."
 if ! command -v brew >/dev/null 2>&1; then
   cat <<'EOF'
-Homebrew no está instalado. Instálalo con:
+Homebrew is not installed. Install it with:
 
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-Una vez instalado, reejecuta este script.
+After installing Homebrew re-run this script.
 EOF
   exit 1
 fi
 
-echo "Actualizando Homebrew..."
+echo "Updating Homebrew..."
 brew update
 
 PACKAGES=(qemu nasm llvm binutils gdb make)
 
-echo "Instalando: ${PACKAGES[*]}"
+echo "Installing: ${PACKAGES[*]}"
 brew install "${PACKAGES[@]}"
 
 BREW_PREFIX=$(brew --prefix)
@@ -30,29 +30,30 @@ LLVM_BIN="${BREW_PREFIX}/opt/llvm/bin"
 
 cat <<EOF
 
-Instalación completada. Para usar clang/llvm de Homebrew en esta sesión, añade:
+Installation complete. To use Homebrew llvm in this session, add:
 
-  export PATH=\"${LLVM_BIN}:\$PATH\"
+  export PATH="${LLVM_BIN}:\$PATH"
 
-Si usas Apple Silicon y quieres usar hvf aceleración en QEMU, puedes ejecutar QEMU con
-  -machine accel=hvf
+Important note for Apple Silicon (M1/M2/M3/M4):
+- Running an x86_64 guest on Apple Silicon is emulated (TCG) and will be slower. QEMU's HVF accelerator does not accelerate x86_64 guests on Apple Silicon.
+- If you want better performance on Apple Silicon, consider building an aarch64 guest/kernel and running it with -machine accel=hvf.
 
-Firmado de gdb (manual):
-  1) Abrir Keychain Access -> Certificate Assistant -> Create a Certificate
+GDB code-signing (manual):
+  1) Open Keychain Access -> Certificate Assistant -> Create a Certificate
      - Name: gdb-cert
      - Identity Type: Self Signed Root
      - Type: Code Signing
      - Create and set to "Always Trust"
-  2) Firmar gdb:
+  2) Sign gdb:
      sudo codesign -s gdb-cert $(which gdb)
-  3) Verificar:
+  3) Verify:
      codesign -vvv $(which gdb)
 
-Luego compila y ejecuta:
+Build and run:
   make -C kernel
   make -C kernel run
 
-Para depurar (en otra terminal):
+Debugging (in another terminal):
   make -C kernel gdb
 
 EOF
