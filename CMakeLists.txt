@@ -21,7 +21,7 @@ endif()
 
 find_program(QEMU ${QEMU_EXECUTABLE})
 if(NOT QEMU)
-  message(STATUS "QEMU not found. 'run' and 'debug' targets will warn if used.")
+  message(STATUS "QEMU not found. 'run', 'qemu-run' and 'debug' targets will warn if used.")
 endif()
 
 # -----------------------------------------------------------------------------
@@ -51,6 +51,16 @@ add_custom_target(run
 )
 
 # -----------------------------------------------------------------------------
+# qemu-run alias: explicit alias to the exact command requested by the user
+# -----------------------------------------------------------------------------
+add_custom_target(qemu-run
+  COMMAND ${CMAKE_COMMAND} -E echo "Running NullPoint in QEMU (alias)..."
+  COMMAND ${CMAKE_COMMAND} -E env bash -c "if command -v ${QEMU_EXECUTABLE} >/dev/null 2>&1; then qemu-system-x86_64 -drive format=raw,file='${BOOT_BIN}',if=floppy -serial stdio -no-reboot; else echo 'QEMU not found. Install qemu-system-x86_64 to run.'; fi"
+  DEPENDS boot
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# -----------------------------------------------------------------------------
 # debug target: start QEMU with gdbserver (-S -gdb tcp::1234)
 # -----------------------------------------------------------------------------
 add_custom_target(debug
@@ -65,4 +75,5 @@ add_custom_target(debug
 # -----------------------------------------------------------------------------
 message(STATUS "NullPoint project configured. Use: cmake -S . -B build && cmake --build build --target boot")
 message(STATUS "Run image: cmake --build build --target run")
+message(STATUS "Run using exact alias: cmake --build build --target qemu-run")
 message(STATUS "Debug image: cmake --build build --target debug")

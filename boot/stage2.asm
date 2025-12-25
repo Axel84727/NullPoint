@@ -27,6 +27,8 @@ start:
     jmp .print2
 .done:
 
+    ; The greeting is shown only after a key press
+
     mov si, crlf
 .print_crlf:
     lodsb
@@ -48,22 +50,11 @@ start:
     mov ah, 0x00
     int 0x16
 
-    ; print confirmation
-    mov si, key_msg
-.print_key:
-    lodsb
-    cmp al, 0
-    je .hang
-    mov ah, 0x0E
-    mov bh, 0
-    mov bl, 0x07
-    int 0x10
-    ; serial
-    push ax
-    mov al, [si-1]
-    call serial_putc
-    pop ax
-    jmp .print_key
+    ; After a key is pressed, clear text and show greeting
+    call write_hello_world_top_right
+
+    ; Halt here
+    jmp .hang
 
 .hang:
     hlt
@@ -83,6 +74,47 @@ serial_putc:
     mov dx, 0x3F8
     out dx, al
     ret
+
+; --- VGA text helper ---
+; write_hello_world_top_right: clear the text buffer (80x25) with spaces (attr 0x07)
+; then write the string "hello world" in bright red (attr 0x0C) at row 0, column 69
+; preserves AX, CX, DI, ES
+write_hello_world_top_right:
+    push ax
+    push cx
+    push di
+    push es
+
+    mov ax, 0xB800
+    mov es, ax
+
+    xor di, di        ; start at offset 0
+    mov cx, 2000      ; 80*25 = 2000 cells (stosw counts words)
+    mov ax, 0x0720    ; word: AH=attr(0x07), AL=' ' (0x20)
+    rep stosw         ; fill screen with space + attribute
+
+    ; compute starting cell for row 0, column 69 (80 columns total)
+    mov di, 69
+    shl di, 1         ; cell index * 2 -> byte offset for ES:DI addressing
+
+    ; write NUL-terminated message from data
+    mov si, hello_msg
+.write_loop:
+    lodsb
+    cmp al, 0
+    je .done_write
+    mov ah, 0x0C      ; bright red attribute
+    stosw
+    jmp .write_loop
+.done_write:
+
+    pop es
+    pop di
+    pop cx
+    pop ax
+    ret
+
+hello_msg db "hello world",0
 
 msg2 db "stage2 loaded.", 0
 crlf db 0x0D,0x0A,0
